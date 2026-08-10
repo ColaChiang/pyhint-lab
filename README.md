@@ -1,58 +1,74 @@
 # PyHint Lab
 
-PyHint Lab 是一套結合 Python 程式靜態分析、測試執行、學習者能力模型與生成式 AI 的適性化程式提示系統。學生提交錯誤程式後，系統不會直接讓大型語言模型猜測錯誤，而是先取得可驗證的診斷證據，再依學生程度決定提示層級。
+PyHint Lab 是一套結合程式靜態分析、測試執行、學習者狀態與生成式 AI 的適性化 Python 提示系統。系統不讓大型語言模型直接猜測程式錯誤，而是先取得可驗證的分析結果，再依錯誤類型與學習歷程提供分層提示。
+
+[開啟線上展示版](https://pyhint-lab.workspace-526245.chatgpt.site)
+
+> 目前線上展示版提供 8 題互動練習，使用確定性的 TypeScript 分析引擎，不會直接執行使用者提交的 Python。完整 FastAPI 後端目前提供 3 題，包含真正的 Python AST、受限測試執行、SQLite、BKT 風格能力更新與可選的 LLM 提示表達。
 
 ## 系統流程
 
 ```mermaid
 flowchart LR
     A[學生提交程式] --> B[語法與安全檢查]
-    B --> C[Python AST 靜態分析]
-    C --> D[受限測試執行]
+    B --> C[結構與規則分析]
+    C --> D[公開與隱藏測試]
     D --> E[診斷證據融合]
-    E --> F[能力模型與提示層級]
-    F --> G[規則提示或 LLM 表達]
+    E --> F[提示層級決策]
+    F --> G[規則模板或 LLM 表達]
     G --> H[提示與學習紀錄]
 ```
 
-LLM 不負責判斷程式是否正確。它只會收到結構化診斷資料，例如錯誤規則、可能行號、診斷信心、失敗測試摘要、概念掌握度與允許的提示層級。沒有 API Key 或模型呼叫失敗時，系統會自動使用可解釋的規則式提示。
+LLM 不負責判斷程式是否正確。完整後端只會把結構化診斷證據交給 LLM，例如錯誤規則、可能行號、測試摘要、概念掌握度與允許的提示層級。沒有 API Key 或模型呼叫失敗時，系統仍可使用可解釋的規則式提示。
 
-## 專案組成
+## 目前提供的兩個版本
 
-- `app/`：React／Vinext 學生解題介面。線上展示版使用確定性分析引擎，不會直接執行陌生 Python 程式。
-- `backend/`：真正的 FastAPI 分析服務。連接後會使用 Python 內建 `ast`、受限子程序測試、SQLite、BKT 能力更新與可選的 OpenAI 提示生成。
+| 版本 | 題目數 | 分析方式 | 適合用途 |
+| --- | ---: | --- | --- |
+| 線上展示版 `app/` | 8 題 | TypeScript 確定性規則與模擬隱藏測試 | 網頁展示、UI 測試、研究概念說明 |
+| FastAPI 後端 `backend/` | 3 題 | Python `ast`、受限子程序測試、診斷融合與能力模型 | 本機研究實驗、真實 Python 分析 |
+
+線上展示版與 FastAPI 後端目前是兩個可獨立運作的介面。前端固定呼叫同源的 `/api/analyze` 展示引擎，尚不會因為設定 `NEXT_PUBLIC_PYHINT_API_URL` 而自動切換到 FastAPI；後端可先透過 API 文件獨立測試。
 
 ## 已實作功能
 
-- 三道完整 Python 初學者題目
-- 公開、邊界與隱藏測試案例
-- Python `ast` 程式結構分析
-- 錯誤類型、信心分數與可能行號
-- 累加器覆蓋、奇偶條件顛倒、最大值初始化等規則
-- 必要結構缺失、禁止函式、錯誤函式簽名與語法錯誤
-- 簡化控制流程與可能初始化前使用檢查
-- 執行時間、CPU、記憶體、檔案與輸出限制
+### 線上展示版
+
+- 8 題 Python 初學者練習：串列總和、偶數判斷、最大值、正數計數、母音計數、字串反轉、保留順序去重與階乘
+- 一般、邊界與隱藏測試摘要，不向學生公開測資內容
+- 累加器覆蓋、條件顛倒、錯誤邊界、大小寫、順序遺失與乘法初始值等規則
+- 學生端只顯示一般線上評測風格的測試結果、`FAILED` 狀態與通過數量
+- 診斷規則、行號與信心分數保留在內部，作為提示生成依據
+- Level 1 至 Level 5 適性提示；首次錯誤從 Level 1 開始
+- 可使用「上一層／下一層」查看或解鎖提示層級
+- 正確答案不顯示提示 Level
+- 解題工作台、學習分析與系統透明度頁面
+- D1 作答紀錄、響應式版面與鍵盤操作
+
+### FastAPI 完整後端
+
+- Python `ast` 程式結構分析與簡化資料流檢查
+- 真實公開、邊界與隱藏測試執行
+- 危險語法預檢、逾時、CPU、記憶體、檔案與輸出限制
 - 靜態證據、測試結果與歷史錯誤的診斷融合
-- Level 1 至 Level 5 漸進式提示
-- Bayesian Knowledge Tracing 風格能力更新
-- SQLite 與 D1 學習紀錄
-- 解題工作台、學習分析與診斷透明度頁面
-- Docker 執行環境
-- 研究錯誤分類、評估流程與威脅模型
+- BKT 風格概念掌握度更新
+- SQLite 學習紀錄
+- 規則式五層提示與可選的 OpenAI 提示表達
+- Docker 執行環境、研究錯誤分類與威脅模型
 - 8 項後端自動測試
 
 ## 專案目錄
 
 ```text
 pyhint-lab/
-├── app/                         # React/Vinext 前端與線上 API
+├── app/                         # React/Vinext 前端、展示分析 API 與作答紀錄 API
 ├── backend/
 │   ├── app/
 │   │   ├── analysis/            # Python AST 與簡化資料流規則
 │   │   ├── execution/           # 受限子程序執行器
 │   │   ├── services/            # 診斷、提示、能力與提交服務
 │   │   ├── database.py          # SQLite 學習紀錄
-│   │   ├── problems.py          # 題目與測試案例
+│   │   ├── problems.py          # 後端題目與測試案例
 │   │   └── main.py              # FastAPI 端點
 │   └── tests/                   # 後端自動測試
 ├── db/                          # 線上 D1 資料結構
@@ -62,22 +78,24 @@ pyhint-lab/
 └── .env.example
 ```
 
-## 本機完整執行
+## 本機執行線上展示版
 
-環境需求：
-
-- Node.js 22 以上
-- Python 3.11 以上
-- Docker Desktop（建議）
-
-### 1. 下載專案
+環境需求：Node.js 22 以上。
 
 ```bash
 git clone https://github.com/ColaChiang/pyhint-lab.git
 cd pyhint-lab
+npm install
+npm run dev
 ```
 
-### 2. 啟動 Python 後端
+開啟終端機顯示的本機網址。這個模式會使用 `app/demo-engine.ts` 的確定性展示分析，不需要 Python、Docker 或 API Key。
+
+## 啟動 FastAPI 後端
+
+環境需求：Python 3.11 以上，建議安裝 Docker Desktop。
+
+### 使用 Docker
 
 ```bash
 docker compose up --build api
@@ -88,29 +106,7 @@ docker compose up --build api
 - API 狀態：<http://localhost:8000/health>
 - FastAPI 測試文件：<http://localhost:8000/docs>
 
-### 3. 啟動前端
-
-另開一個終端機。
-
-macOS／Linux：
-
-```bash
-cp .env.example .env.local
-npm install
-npm run dev
-```
-
-Windows PowerShell：
-
-```powershell
-Copy-Item .env.example .env.local
-npm install
-npm run dev
-```
-
-開啟終端機顯示的網址。當 `NEXT_PUBLIC_PYHINT_API_URL=http://localhost:8000` 時，前端會使用真正的 Python AST 後端；若後端離線，介面會回退到展示用確定性分析引擎。
-
-## 不使用 Docker 啟動後端
+### 不使用 Docker
 
 macOS／Linux：
 
@@ -134,7 +130,7 @@ uvicorn app.main:app --reload
 
 ## 啟用生成式 AI 提示
 
-系統不需要 API Key 也能運作。若要讓 LLM 將診斷證據改寫成自然語言提示：
+FastAPI 後端不需要 API Key 也能運作。若要讓 LLM 將已驗證的診斷證據改寫成自然語言提示：
 
 ```bash
 cd backend
@@ -149,9 +145,19 @@ export PYHINT_OPENAI_API_KEY='your-api-key'
 export PYHINT_OPENAI_MODEL='gpt-5.6'
 ```
 
-請勿將 API Key 寫進程式或提交至 GitHub。
+請勿將 API Key 寫入程式或提交至 GitHub。
 
 ## API
+
+### 線上展示版
+
+| 方法 | 路徑 | 功能 |
+| --- | --- | --- |
+| `POST` | `/api/analyze` | 執行展示分析並取得測試摘要與提示 |
+| `GET` | `/api/submissions` | 取得目前使用者最近的作答紀錄 |
+| `POST` | `/api/submissions` | 儲存一次作答結果 |
+
+### FastAPI 後端
 
 | 方法 | 路徑 | 功能 |
 | --- | --- | --- |
@@ -174,6 +180,8 @@ export PYHINT_OPENAI_MODEL='gpt-5.6'
 
 ## 執行測試
 
+後端測試：
+
 ```bash
 cd backend
 python -m unittest discover -s tests -v
@@ -186,11 +194,18 @@ Ran 8 tests
 OK
 ```
 
+前端建置與輸出驗證：
+
+```bash
+npm run lint
+npm run build
+```
+
 ## 安全限制
 
-目前執行器適合課堂展示與研究原型，不應直接當成大型公開線上判題系統。AST 黑名單本身不是完整的 Python sandbox。
+完整後端目前適合課堂展示與研究原型，不應直接當成大型公開線上判題系統。AST 黑名單本身不是完整的 Python sandbox。
 
-正式對外服務前，建議將每次程式執行移到一次性容器或 microVM，並加入：
+正式允許不受信任的使用者執行任意 Python 前，建議將每次執行移到一次性容器或 microVM，並加入：
 
 - 獨立的無網路執行環境
 - seccomp／AppArmor 系統呼叫限制
@@ -199,7 +214,7 @@ OK
 - 不將密鑰掛載進執行器
 - 執行完成後立即銷毀環境
 
-詳細內容請參考 `research/threat-model.md`。
+詳細內容請參考 [`research/threat-model.md`](research/threat-model.md)。
 
 ## 研究設計
 
@@ -211,187 +226,7 @@ OK
 
 主要評估指標包括診斷 Precision、Recall、Macro F1、答對所需嘗試次數、最高提示層級、提示後修改方向、延宕測驗、提示清楚度、答案洩漏程度與可信度。
 
-## 使用說明
+## English summary
 
-本專案目前定位為教育研究與課堂展示原型。若要公開部署並允許不受信任的使用者執行任意 Python，請先完成上述 sandbox 強化。
+PyHint Lab is an adaptive Python hint system. The hosted demo contains eight interactive exercises powered by a deterministic TypeScript analyzer, while the FastAPI research backend currently contains three exercises with Python AST analysis, bounded test execution, SQLite history, BKT-style mastery updates, and optional LLM wording. The LLM explains verified evidence; it does not decide whether a submission is correct.
 
-PyHint Lab
-
-PyHint Lab is an adaptive Python hint system that diagnoses a learner's program before asking a language model to explain the problem. It combines Python AST analysis, bounded test execution, evidence fusion, a learner model, five hint levels, and an optional LLM phrasing layer.
-
-The repository contains two working surfaces:
-
-app/: the responsive Vinext/React student interface. It includes a deterministic browser demo engine so the hosted demonstration remains interactive without executing untrusted Python on the edge.
-
-backend/: the real FastAPI analysis service. When configured through NEXT_PUBLIC_PYHINT_API_URL, the interface uses Python's built-in ast, isolated tests, SQLite history, BKT mastery updates, and optional OpenAI hint wording.
-
-System flow
-
-flowchart LR
-    A[Student code] --> B[Syntax and safety]
-    B --> C[Python AST rules]
-    C --> D[Bounded tests]
-    D --> E[Evidence fusion]
-    E --> F[Mastery and hint level]
-    F --> G[Template or LLM wording]
-    G --> H[Hint and learning record]
-
-The LLM never decides whether the code is correct. It receives a typed evidence object containing the selected rule, line, confidence, failed-test summary, mastery probability, and permitted hint level. A deterministic template is always available as a fallback.
-
-Included features
-
-Three complete Python exercises with public, boundary, and hidden tests.
-
-Explainable rules for accumulator overwrite, reversed parity, unsafe maximum initialization, missing structures, forbidden calls, signature errors, syntax errors, and possible use-before-assignment.
-
-Security pre-screening for imports, system attributes, dangerous calls, dunder attributes, global state, and overly large ASTs.
-
-Child-process runner with interpreter isolation and CPU, memory, time, file, descriptor, and output limits.
-
-Weighted diagnosis combining static confidence, failing-test signal, and repeated-error history.
-
-Five progressive hint levels with answer-leakage checks.
-
-BKT-style concept mastery updates for loops, accumulators, lists, conditions, and functions.
-
-SQLite persistence in the Python API and D1 persistence for the hosted interaction history.
-
-Student workspace, learning dashboard, diagnostic transparency page, responsive mobile layout, and keyboard-accessible controls.
-
-Research taxonomy, evaluation protocol, and threat model.
-
-Eight automated backend tests.
-
-Repository layout
-
-pyhint-lab/
-├── app/                         # React/Vinext interface and hosted API route
-├── backend/
-│   ├── app/
-│   │   ├── analysis/            # Python AST and simplified data-flow rules
-│   │   ├── execution/           # Bounded child-process runner
-│   │   ├── services/            # Diagnosis, mastery, hints, submissions
-│   │   ├── database.py          # SQLite history and mastery storage
-│   │   ├── problems.py          # Exercise/test registry
-│   │   └── main.py              # FastAPI endpoints
-│   └── tests/                   # Core automated tests
-├── db/                          # Hosted D1 schema
-├── drizzle/                     # Generated SQL migration
-├── research/                    # Evaluation and safety documents
-├── docker-compose.yml
-└── .env.example
-
-Run the complete project locally
-
-Prerequisites: Node.js 22+, Python 3.11+, and Docker (recommended for the API).
-
-Start the Python backend:
-
-docker compose up --build api
-
-The API and interactive documentation are available at http://localhost:8000 and http://localhost:8000/docs.
-
-In another terminal, connect and start the interface:
-
-cp .env.example .env.local
-npm install
-npm run dev
-
-Open the local URL printed by the frontend. Submissions now use the real Python service. If the API is unavailable, the interface deliberately falls back to the deterministic demo engine.
-
-For backend-only development without Docker:
-
-cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .
-uvicorn app.main:app --reload
-
-Enable LLM wording
-
-The system works without an API key. To let the LLM rephrase verified evidence, install the optional dependency and set environment values:
-
-cd backend
-pip install -e '.[ai]'
-export PYHINT_LLM_ENABLED=true
-export PYHINT_OPENAI_API_KEY='your-key'
-export PYHINT_OPENAI_MODEL='gpt-5.6'
-
-The implementation uses the Responses API with separate instructions and typed JSON evidence, following the official OpenAI text-generation documentation. Keep the model configurable and evaluate prompt changes before changing a research condition.
-
-API
-
-Method
-
-Route
-
-Purpose
-
-GET
-
-/health
-
-service health
-
-GET
-
-/api/problems
-
-problem list without tests
-
-GET
-
-/api/problems/{id}
-
-problem detail without hidden tests
-
-POST
-
-/api/submissions
-
-analyze, test, diagnose, hint, and update mastery
-
-GET
-
-/api/students/{id}/mastery
-
-concept probabilities
-
-GET
-
-/api/students/{id}/history
-
-recent attempts
-
-Example submission:
-
-{
-  "user_id": "student-01",
-  "problem_id": "list-sum",
-  "code": "def calculate_sum(numbers):\n    total = 0\n    for number in numbers:\n        total += number\n    return total"
-}
-
-Tests
-
-The AST, runner, hidden-test redaction, submission pipeline, hint choice, persistence, and mastery updates are covered using only the Python standard test runner:
-
-cd backend
-python -m unittest discover -s tests -v
-
-Frontend and deployment validation run through the project's existing build and artifact checks.
-
-Security boundary
-
-The included controls are suitable for a controlled educational demonstration, not an internet-facing multi-tenant judge. AST blacklists are not a complete Python sandbox. Before production use, move execution into one-job ephemeral containers or microVMs with no network, a syscall allowlist, per-job cgroups, and no secrets. See research/threat-model.md for the exact residual risks and upgrade path.
-
-Research use
-
-Use research/error-taxonomy.md to label a benchmark dataset and research/evaluation-protocol.md to compare:
-
-test-only fixed hints;
-
-direct LLM diagnosis;
-
-AST + tests + learner model + evidence-grounded wording.
-
-Primary outcomes are diagnostic macro F1, attempts to correctness, time, highest hint level, code-edit direction, retention, clarity, answer leakage, and trust.
