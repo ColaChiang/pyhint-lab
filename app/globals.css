@@ -21,11 +21,8 @@ button { color: inherit; }
 
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 226px minmax(0, 1fr); }
 .sidebar { position: sticky; top: 0; height: 100vh; background: var(--navy); color: #f7f5ee; display: flex; flex-direction: column; padding: 24px 16px 18px; z-index: 10; }
-.brand { display: flex; align-items: center; gap: 10px; background: none; border: 0; cursor: pointer; text-align: left; padding: 0 8px 24px; color: white; }
-.brand-mark { width: 42px; height: 42px; border: 1px solid #86a296; display: grid; place-items: center; font: 700 20px var(--mono); transform: rotate(-2deg); box-shadow: 4px 4px 0 var(--acid); }
-.brand-mark span { color: var(--acid); }
-.brand strong { display: block; font-size: 19px; letter-spacing: -.03em; }
-.brand small { display: block; color: #9fb0aa; font: 11px var(--mono); letter-spacing: .13em; text-transform: uppercase; margin-top: 3px; }
+.brand { background: none; border: 0; color: white; cursor: pointer; padding: 3px 8px 25px; text-align: left; }
+.brand strong { display: block; font-size: 25px; letter-spacing: -.045em; }
 
 .main-nav { display: grid; gap: 5px; padding: 15px 0 20px; border-top: 1px solid #31464a; border-bottom: 1px solid #31464a; }
 .main-nav button { border: 0; background: transparent; color: #aebcb8; text-align: left; padding: 12px; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 11px; }
@@ -128,7 +125,9 @@ button { color: inherit; }
 .analysis-head .success { color: #31582d; background: #e4f4bf; }
 .analysis-head small { font: 10px var(--mono); color: var(--muted); }
 .raw-error-card { background: #202b2d; border-left: 5px solid var(--orange); color: #f5f2e9; min-height: 142px; padding: 16px; }
-.raw-error-card > span { color: #f4a18c; font: 700 10px var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+.test-result-label { align-items: center; display: flex; justify-content: space-between; }
+.test-result-label span { color: #d9e2df; font: 700 11px var(--mono); }
+.test-result-label b { background: #603a35; border-radius: 3px; color: #ffb5a3; font: 700 9px var(--mono); letter-spacing: .08em; padding: 4px 7px; }
 .raw-error-card pre { color: #ffd8ce; font: 13px/1.7 var(--mono); margin: 16px 0; overflow: auto; white-space: pre-wrap; }
 .raw-error-card small { color: #8fa09c; font-size: 10px; }
 .hint-card { background: #eaf5d6; border-left: 5px solid #7aa62d; padding: 18px; box-shadow: 0 8px 24px rgba(72, 101, 25, .08); }
@@ -137,7 +136,11 @@ button { color: inherit; }
 .hint-card div small { font-size: 11px; color: #657052; }
 .hint-card p { font-size: 17px; line-height: 1.75; margin: 15px 0; font-weight: 600; }
 .hint-card .level-explain { border-top: 1px solid #c8d9aa; color: #61704c; display: block; font-size: 11px; padding: 11px 0 0; }
-.hint-card button { width: 100%; border: 0; border-top: 1px solid #c8d9aa; padding: 13px 0 0; background: transparent; text-align: left; font-size: 13px; font-weight: 700; color: #456321; cursor: pointer; display: flex; justify-content: space-between; }
+.hint-navigation { align-items: center; border-top: 1px solid #c8d9aa; display: grid !important; grid-template-columns: 1fr auto 1fr; gap: 12px; margin-top: 14px; padding-top: 12px; }
+.hint-navigation button { align-items: center; background: transparent; border: 0; color: #456321; cursor: pointer; display: flex; font-size: 12px; font-weight: 700; gap: 6px; padding: 4px 0; }
+.hint-navigation button:last-child { justify-content: flex-end; }
+.hint-navigation button:disabled { color: #9eaa8d; cursor: not-allowed; }
+.hint-navigation em { color: #687755; font: 10px var(--mono); font-style: normal; white-space: nowrap; }
 .success-card { align-items: center; background: #eff8df; border: 1px solid #cfe2ab; display: flex; gap: 16px; min-height: 112px; padding: 20px; }
 .success-card > span { align-items: center; background: var(--acid); border-radius: 50%; color: #31582d; display: flex; flex: 0 0 auto; font-size: 22px; font-weight: 900; height: 46px; justify-content: center; width: 46px; }
 .success-card strong { display: block; font-size: 17px; }
@@ -248,8 +251,7 @@ button { color: inherit; }
   .app-shell { display: block; }
   .sidebar { position: static; width: 100%; height: auto; padding: 13px 16px; flex-direction: row; align-items: center; gap: 12px; }
   .brand { padding: 0; margin-right: auto; }
-  .brand-mark { width: 34px; height: 34px; box-shadow: 2px 2px 0 var(--acid); }
-  .brand small, .problem-nav, .sidebar-profile { display: none; }
+  .problem-nav, .sidebar-profile { display: none; }
   .main-nav { display: flex; border: 0; padding: 0; }
   .main-nav button { font-size: 0; padding: 10px; }
   .main-nav button span { font-size: 17px; }
