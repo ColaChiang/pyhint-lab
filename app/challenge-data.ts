@@ -26,6 +26,7 @@ export type PublicAnalysis = {
   syntaxValid: boolean;
   structures: string[];
   finding: Finding | null;
+  rawError: string | null;
   passed: number;
   total: number;
 };
