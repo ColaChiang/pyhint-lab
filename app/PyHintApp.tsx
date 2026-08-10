@@ -1,14 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  Analysis,
-  Challenge,
-  challenges,
-  analyzeCode,
-  chooseHintLevel,
-  getHint,
-} from "./demo-engine";
+import { Challenge, PublicAnalysis, challenges } from "./challenge-data";
 
 type View = "workspace" | "progress" | "system";
 
@@ -20,12 +13,21 @@ const masterySeed = [
   { label: "累加器", value: 41, delta: "+12" },
 ];
 
+const hintLevelDescriptions: Record<number, string> = {
+  1: "概念線索｜保留最多思考空間",
+  2: "範圍線索｜指出可能的程式區域",
+  3: "方向提示｜說明應如何思考修改",
+  4: "部分程式碼｜提供關鍵寫法",
+  5: "完整解法｜說明完整修正方式",
+};
+
 export default function PyHintApp({ user }: { user: { name: string; email: string } }) {
   const [view, setView] = useState<View>("workspace");
   const [challenge, setChallenge] = useState<Challenge>(challenges[0]);
   const [code, setCode] = useState(challenges[0].starter);
-  const [analysis, setAnalysis] = useState<Analysis | null>(null);
+  const [analysis, setAnalysis] = useState<PublicAnalysis | null>(null);
   const [attempts, setAttempts] = useState<Record<string, number>>({});
+  const [errorProgress, setErrorProgress] = useState<Record<string, { ruleId: string | null; streak: number }>>({});
   const [hintLevel, setHintLevel] = useState(0);
   const [remoteHint, setRemoteHint] = useState<string | null>(null);
   const [mastery, setMastery] = useState(masterySeed);
@@ -36,10 +38,15 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
   ]);
 
   const currentAttempts = attempts[challenge.id] ?? 0;
+  const currentErrorProgress = errorProgress[challenge.id] ?? { ruleId: null, streak: 0 };
   const primaryMastery = mastery.find((item) => item.label === challenge.concepts[0])?.value ?? 60;
   const analysisMastery = mastery.find((item) => item.label === analysis?.finding?.concept)?.value ?? primaryMastery;
-  const passedCount = analysis?.tests.filter((test) => test.passed).length ?? 0;
+  const passedCount = analysis?.passed ?? 0;
   const lineNumbers = useMemo(() => code.split("\n").map((_, index) => index + 1), [code]);
+  const masteryByConcept = useMemo(
+    () => Object.fromEntries(mastery.map((item) => [item.label, item.value])),
+    [mastery],
+  );
 
   useEffect(() => {
     fetch("/api/submissions")
@@ -68,69 +75,51 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
 
   async function runAnalysis() {
     setRunning(true);
-    await new Promise((resolve) => setTimeout(resolve, 420));
-    let nextAnalysis = analyzeCode(challenge, code);
-    let backendHint: { content: string; level: number } | null = null;
-    const apiBase = process.env.NEXT_PUBLIC_PYHINT_API_URL;
-    if (apiBase) {
-      try {
-        const response = await fetch(`${apiBase.replace(/\/$/, "")}/api/submissions`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ user_id: user.email, problem_id: challenge.id, code }),
-        });
-        if (response.ok) {
-          const payload = await response.json();
-          const conceptMap: Record<string, "迴圈" | "累加器" | "串列" | "條件判斷" | "函式"> = {
-            loop: "迴圈", accumulator: "累加器", list: "串列", condition: "條件判斷", function: "函式",
-          };
-          const primary = payload.diagnosis?.primary;
-          nextAnalysis = {
-            syntaxValid: payload.static_analysis.syntax_valid,
-            structures: Object.entries(payload.static_analysis.structures)
-              .filter(([, count]) => Number(count) > 0)
-              .map(([name]) => name),
-            finding: primary ? {
-              ruleId: primary.rule_id,
-              title: primary.title,
-              concept: conceptMap[primary.concept] ?? "函式",
-              line: primary.line,
-              confidence: primary.confidence,
-              evidence: primary.evidence,
-            } : null,
-            tests: payload.tests.map((test: { name: string; input: unknown; expected: unknown; actual: unknown; passed: boolean; kind: string }) => ({
-              name: test.name,
-              input: test.kind === "hidden" ? "••••••" : (JSON.stringify(test.input) ?? "—"),
-              expected: test.kind === "hidden" ? "通過" : (JSON.stringify(test.expected) ?? "—"),
-              actual: test.kind === "hidden" ? (test.passed ? "通過" : "失敗") : (JSON.stringify(test.actual) ?? "—"),
-              passed: test.passed,
-              hidden: test.kind === "hidden",
-            })),
-            score: payload.tests.filter((test: { passed: boolean }) => test.passed).length,
-          };
-          backendHint = payload.hint;
-        }
-      } catch {
-        // The in-browser deterministic engine remains available when the API is offline.
-      }
-    }
     const nextAttempts = currentAttempts + 1;
-    const repeated = analysis?.finding?.ruleId === nextAnalysis.finding?.ruleId;
-    const diagnosticMastery = mastery.find((item) => item.label === nextAnalysis.finding?.concept)?.value ?? primaryMastery;
-    const nextLevel = chooseHintLevel(nextAttempts, diagnosticMastery, repeated);
+    let nextAnalysis: PublicAnalysis;
+    let nextHint: { content: string; level: number; errorStreak: number };
+    try {
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          problemId: challenge.id,
+          code,
+          attempts: nextAttempts,
+          masteryByConcept,
+          previousRuleId: currentErrorProgress.ruleId,
+          previousErrorStreak: currentErrorProgress.streak,
+        }),
+      });
+      if (!response.ok) throw new Error("analysis failed");
+      const payload = (await response.json()) as { analysis: PublicAnalysis; hint: { content: string; level: number; errorStreak: number } };
+      nextAnalysis = payload.analysis;
+      nextHint = payload.hint;
+    } catch {
+      setRunning(false);
+      setRemoteHint("目前無法連線到診斷服務，請稍後再試一次。");
+      return;
+    }
     setAnalysis(nextAnalysis);
     setAttempts((previous) => ({ ...previous, [challenge.id]: nextAttempts }));
-    setHintLevel(backendHint?.level ?? nextLevel);
-    setRemoteHint(backendHint?.content ?? null);
+    setErrorProgress((previous) => ({
+      ...previous,
+      [challenge.id]: {
+        ruleId: nextAnalysis.finding?.ruleId ?? null,
+        streak: nextAnalysis.finding ? nextHint.errorStreak : 0,
+      },
+    }));
+    setHintLevel(nextAnalysis.finding ? nextHint.level : 0);
+    setRemoteHint(nextAnalysis.finding ? nextHint.content : null);
     setHistory((previous) => [
       {
         title: challenge.title,
-        result: nextAnalysis.tests.length > 0 && nextAnalysis.tests.every((test) => test.passed) ? "通過" : `第 ${nextAttempts} 次嘗試`,
+        result: nextAnalysis.total > 0 && nextAnalysis.passed === nextAnalysis.total ? "通過" : `第 ${nextAttempts} 次嘗試`,
         time: "剛剛",
       },
       ...previous.slice(0, 5),
     ]);
-    if (nextAnalysis.tests.length > 0 && nextAnalysis.tests.every((test) => test.passed)) {
+    if (nextAnalysis.total > 0 && nextAnalysis.passed === nextAnalysis.total) {
       setMastery((previous) =>
         previous.map((item) =>
           challenge.concepts.includes(item.label as never)
@@ -147,17 +136,38 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
       body: JSON.stringify({
         problemId: challenge.id,
         code,
-        passed: nextAnalysis.tests.filter((test) => test.passed).length,
-        total: nextAnalysis.tests.length,
+        passed: nextAnalysis.passed,
+        total: nextAnalysis.total,
         ruleId: nextAnalysis.finding?.ruleId ?? null,
-        hintLevel: nextLevel,
+        hintLevel: nextAnalysis.finding ? nextHint.level : 0,
       }),
     }).catch(() => undefined);
   }
 
-  function nextHint() {
-    setHintLevel((current) => Math.min(5, Math.max(1, current + 1)));
-    setRemoteHint(null);
+  async function requestNextHint() {
+    if (!analysis || hintLevel >= 5) return;
+    const requestedLevel = Math.min(5, hintLevel + 1);
+    try {
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          problemId: challenge.id,
+          code,
+          attempts: currentAttempts,
+          masteryByConcept,
+          previousRuleId: analysis.finding?.ruleId ?? null,
+          previousErrorStreak: currentErrorProgress.streak,
+          requestedLevel,
+        }),
+      });
+      if (!response.ok) return;
+      const payload = (await response.json()) as { hint: { content: string; level: number } };
+      setHintLevel(payload.hint.level);
+      setRemoteHint(payload.hint.content);
+    } catch {
+      // Keep the current hint when the service is temporarily unavailable.
+    }
   }
 
   const initials = user.name === "學習者" ? "PL" : user.name.slice(0, 2).toUpperCase();
@@ -203,7 +213,7 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
         </header>
 
         {view === "workspace" && (
-          <div className="workspace-grid">
+          <div className={`workspace-grid ${analysis ? "has-analysis" : ""}`}>
             <section className="problem-panel panel">
               <div className="panel-label"><span>01</span>題目說明</div>
               <div className="difficulty"><span>{challenge.difficulty}</span><small>預估 8 分鐘</small></div>
@@ -233,7 +243,12 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
                 <div className="line-numbers" aria-hidden="true">{lineNumbers.map((number) => <span key={number}>{number}</span>)}</div>
                 <textarea
                   value={code}
-                  onChange={(event) => setCode(event.target.value)}
+                  onChange={(event) => {
+                    setCode(event.target.value);
+                    setAnalysis(null);
+                    setHintLevel(0);
+                    setRemoteHint(null);
+                  }}
                   onKeyDown={(event) => {
                     if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
                       event.preventDefault();
@@ -247,60 +262,50 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
               <div className="editor-status"><span><i className={analysis?.syntaxValid === false ? "status-error" : "status-ok"} />{analysis?.syntaxValid === false ? "語法需修正" : "語法結構可分析"}</span><span>Ln {code.split("\n").length}, Col 1 · Spaces: 4 · UTF-8</span></div>
             </section>
 
-            <aside className="insight-panel panel">
-              <div className="panel-label"><span>AI</span>適性提示</div>
-              {!analysis ? (
-                <div className="empty-analysis">
-                  <div className="scan-glyph"><i /><i /><i /></div>
-                  <strong>等待你的程式</strong>
-                  <p>執行後會先分析 AST 與測試證據，再產生適合你程度的提示。</p>
+            {analysis && (
+              <aside className="insight-panel panel" aria-live="polite">
+                <div className="hint-heading">
+                  <div className="panel-label"><span>{analysis.finding ? "AI" : "✓"}</span>{analysis.finding ? "診斷結果與適性提示" : "執行結果"}</div>
+                  <strong>{analysis.finding ? "提示已啟用" : "作答完成"}</strong>
                 </div>
-              ) : (
-                <>
-                  <div className="analysis-head">
-                    <span className={analysis.finding ? "warning" : "success"}>{analysis.finding ? "發現 1 個主要問題" : "所有測試通過"}</span>
-                    <small>第 {currentAttempts} 次嘗試</small>
+                <div className="analysis-content">
+                  <div className="diagnosis-column">
+                    <div className="analysis-head">
+                      <span className={analysis.finding ? "warning" : "success"}>{analysis.finding ? "發現 1 個主要問題" : "所有測試通過"}</span>
+                      <small>第 {currentAttempts} 次嘗試</small>
+                    </div>
+                    {analysis.finding ? (
+                      <div className="finding-card">
+                        <div className="diagnosis-label"><b>診斷結果</b><small>不是提示內容</small></div>
+                        <div><span>第 {analysis.finding.line ?? "?"} 行</span><em>{Math.round(analysis.finding.confidence * 100)}% 信心</em></div>
+                        <strong>{analysis.finding.title}</strong>
+                        <p>{analysis.finding.evidence}</p>
+                        <code>{analysis.finding.ruleId}</code>
+                      </div>
+                    ) : (
+                      <div className="success-card">
+                        <span>✓</span>
+                        <div><strong>答案正確，不需要提示</strong><p>程式已通過所有系統測試，因此不會顯示提示 Level。</p></div>
+                      </div>
+                    )}
                   </div>
                   {analysis.finding && (
-                    <div className="finding-card">
-                      <div><span>第 {analysis.finding.line ?? "?"} 行</span><em>{Math.round(analysis.finding.confidence * 100)}% 信心</em></div>
-                      <strong>{analysis.finding.title}</strong>
-                      <p>{analysis.finding.evidence}</p>
-                      <code>{analysis.finding.ruleId}</code>
+                    <div className="hint-card">
+                      <div><span>適性提示 · LEVEL {hintLevel}</span><small>相同錯誤第 {currentErrorProgress.streak} 次</small></div>
+                      <p>{remoteHint ?? "正在準備適合你的提示…"}</p>
+                      <div className="level-explain">{hintLevelDescriptions[hintLevel]}</div>
+                      {hintLevel < 5 && <button onClick={requestNextHint}>我還需要更具體的提示 <span>→</span></button>}
                     </div>
                   )}
-                  <div className="hint-card">
-                    <div><span>提示 LEVEL {Math.max(1, hintLevel)}</span><small>依掌握度 {analysisMastery}% 調整</small></div>
-                    <p>{remoteHint ?? getHint(analysis.finding, Math.max(1, hintLevel))}</p>
-                    {analysis.finding && hintLevel < 5 && <button onClick={nextHint}>我還需要更具體的提示 <span>→</span></button>}
-                  </div>
                   <div className="evidence-list">
-                    <p>分析證據</p>
+                    <p>診斷依據</p>
                     <span><i>AST</i>{analysis.structures.join(" · ") || "無可用結構"}</span>
-                    <span><i>TEST</i>{passedCount}/{analysis.tests.length} 個測試通過</span>
-                    <span><i>MODEL</i>{analysis?.finding?.concept ?? challenge.concepts[0]}掌握度 {analysisMastery}%</span>
+                    <span><i>TEST</i>系統測試 {passedCount}/{analysis.total} 通過（測資保密）</span>
+                    <span><i>MODEL</i>{analysis.finding ? `${analysis.finding.concept}掌握度 ${analysisMastery}%` : "本次未啟用提示"}</span>
                   </div>
-                </>
-              )}
-            </aside>
-
-            <section className="tests-panel panel">
-              <div className="tests-title"><div><span className="panel-label"><span>04</span>測試結果</span><small>公開、邊界與隱藏案例</small></div>{analysis && <strong className={passedCount === analysis.tests.length ? "all-pass" : "some-fail"}>{passedCount} / {analysis.tests.length} PASSED</strong>}</div>
-              {!analysis ? (
-                <div className="test-placeholder">執行程式後，測試證據會顯示在這裡。</div>
-              ) : (
-                <div className="test-grid">
-                  {analysis.tests.map((test) => (
-                    <article key={test.name} className={test.passed ? "test-pass" : "test-fail"}>
-                      <div><span>{test.passed ? "✓" : "×"}</span><strong>{test.name}</strong><em>{test.passed ? "PASS" : "FAIL"}</em></div>
-                      <p><span>input</span><code>{test.input}</code></p>
-                      <p><span>expected</span><code>{test.expected}</code></p>
-                      <p><span>actual</span><code>{test.actual}</code></p>
-                    </article>
-                  ))}
                 </div>
-              )}
-            </section>
+              </aside>
+            )}
           </div>
         )}
 
@@ -342,17 +347,17 @@ function SystemView() {
   const stages = [
     { no: "01", title: "語法與安全檢查", text: "拒絕危險匯入、系統操作與不完整語法。" },
     { no: "02", title: "AST 靜態分析", text: "以規則找出結構、節點、變數更新與可疑行號。" },
-    { no: "03", title: "隔離測試執行", text: "執行公開、邊界與隱藏案例，保留可驗證證據。" },
+    { no: "03", title: "隔離測試執行", text: "執行一般、邊界與隱藏案例；學生端只顯示通過總數，不公開測資。" },
     { no: "04", title: "診斷融合", text: "結合靜態規則、測試差異、題目限制與歷史錯誤。" },
-    { no: "05", title: "適性提示生成", text: "能力模型決定揭露程度，語言模型只負責表達。" },
+    { no: "05", title: "適性提示生成", text: "每種錯誤首次固定從 Level 1 開始；相同錯誤重複出現才逐層增加。" },
   ];
   return (
     <div className="system-view">
       <section className="system-intro"><span>EXPLAINABLE BY DESIGN</span><h2>LLM 不負責猜錯，<br />它只負責把證據說清楚。</h2><p>每一則提示都有規則、測試與學習者狀態作為來源，降低幻覺，也讓研究者能重現診斷結果。</p></section>
       <section className="pipeline">{stages.map((stage, index) => <article key={stage.no}><div><span>{stage.no}</span><em>{index < stages.length - 1 ? "→" : "✓"}</em></div><strong>{stage.title}</strong><p>{stage.text}</p></article>)}</section>
       <section className="transparency-grid">
-        <article className="panel"><span>診斷資料格式</span><pre>{`{\n  "rule_id": "ACCUMULATOR_OVERWRITE",\n  "line": 4,\n  "confidence": 0.96,\n  "test_evidence": "actual=3, expected=6",\n  "hint_level": 2\n}`}</pre></article>
-        <article className="panel metric-explain"><span>提示決策</span><h3>能力高＋首次錯誤</h3><div><i style={{ width: "28%" }} /></div><p>先給概念型提示，保留自行修正空間。</p><h3>低掌握度＋重複錯誤</h3><div><i style={{ width: "78%" }} /></div><p>指出區域與修改方向，但仍不直接公布答案。</p></article>
+        <article className="panel"><span>診斷資料格式</span><pre>{`{\n  "rule_id": "ACCUMULATOR_OVERWRITE",\n  "line": 4,\n  "confidence": 0.96,\n  "tests_passed": 2,\n  "tests_total": 4,\n  "hint_level": 1\n}`}</pre></article>
+        <article className="panel metric-explain"><span>提示決策</span><h3>首次出現任何錯誤</h3><div><i style={{ width: "20%" }} /></div><p>固定從 Level 1 概念線索開始，不因低掌握度直接跳級。</p><h3>相同錯誤持續出現</h3><div><i style={{ width: "60%" }} /></div><p>每次只提高一層；若錯誤類型改變，則重新從 Level 1 開始。</p></article>
         <article className="panel safety-card"><span>執行隔離</span><h3>Defense in depth</h3><ul><li>AST 危險語法預檢</li><li>無網路、非 root 執行</li><li>CPU / RAM / 輸出限制</li><li>逾時終止與一次性工作目錄</li></ul></article>
       </section>
     </div>
