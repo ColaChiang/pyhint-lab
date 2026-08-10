@@ -1,4 +1,4 @@
-export type Concept = "迴圈" | "累加器" | "串列" | "條件判斷" | "函式";
+export type Concept = "迴圈" | "累加器" | "串列" | "字串" | "條件判斷" | "函式";
 
 export type Challenge = {
   id: string;
@@ -73,5 +73,75 @@ export const challenges: Challenge[] = [
     sampleInput: "[-8, -3, -11]",
     sampleOutput: "-3",
     functionName: "find_max",
+  },
+  {
+    id: "count-positive",
+    index: 4,
+    title: "計算正數個數",
+    description:
+      "完成 count_positive(numbers)，回傳串列中大於 0 的數字個數；0 不算正數。",
+    difficulty: "基礎",
+    concepts: ["迴圈", "條件判斷", "累加器"],
+    starter:
+      "def count_positive(numbers):\n    count = 0\n    for number in numbers:\n        if number >= 0:\n            count += 1\n    return count",
+    sampleInput: "[-2, 0, 5, 8]",
+    sampleOutput: "2",
+    functionName: "count_positive",
+  },
+  {
+    id: "count-vowels",
+    index: 5,
+    title: "計算母音數量",
+    description:
+      "完成 count_vowels(text)，計算英文文字中的母音數量，並同時處理大小寫。",
+    difficulty: "中階",
+    concepts: ["迴圈", "條件判斷", "字串"],
+    starter:
+      "def count_vowels(text):\n    count = 0\n    for char in text:\n        if char in \"aeiou\":\n            count += 1\n    return count",
+    sampleInput: "\"OpenAI\"",
+    sampleOutput: "4",
+    functionName: "count_vowels",
+  },
+  {
+    id: "reverse-text",
+    index: 6,
+    title: "反轉字串",
+    description:
+      "完成 reverse_text(text)，使用迴圈反轉字串。請勿使用切片 [::-1] 或 reversed()。",
+    difficulty: "中階",
+    concepts: ["迴圈", "字串", "累加器"],
+    starter:
+      "def reverse_text(text):\n    result = \"\"\n    for char in text:\n        result += char\n    return result",
+    sampleInput: "\"python\"",
+    sampleOutput: "\"nohtyp\"",
+    functionName: "reverse_text",
+  },
+  {
+    id: "unique-items",
+    index: 7,
+    title: "保留順序去重",
+    description:
+      "完成 unique_items(items)，移除重複項目並保留第一次出現的順序。請勿使用 set()。",
+    difficulty: "中階",
+    concepts: ["迴圈", "條件判斷", "串列"],
+    starter:
+      "def unique_items(items):\n    return list(set(items))",
+    sampleInput: "[3, 1, 3, 2, 1]",
+    sampleOutput: "[3, 1, 2]",
+    functionName: "unique_items",
+  },
+  {
+    id: "factorial",
+    index: 8,
+    title: "計算階乘",
+    description:
+      "完成 factorial(n)，使用迴圈計算非負整數 n 的階乘，並正確處理 0! = 1。",
+    difficulty: "中階",
+    concepts: ["迴圈", "累加器", "函式"],
+    starter:
+      "def factorial(n):\n    result = 0\n    for number in range(1, n + 1):\n        result *= number\n    return result",
+    sampleInput: "5",
+    sampleOutput: "120",
+    functionName: "factorial",
   },
 ];
