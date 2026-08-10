@@ -9,6 +9,7 @@ const masterySeed = [
   { label: "迴圈", value: 72, delta: "+8" },
   { label: "條件判斷", value: 58, delta: "+3" },
   { label: "串列", value: 81, delta: "+6" },
+  { label: "字串", value: 64, delta: "+5" },
   { label: "函式", value: 66, delta: "+4" },
   { label: "累加器", value: 41, delta: "+12" },
 ];
@@ -29,6 +30,7 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
   const [attempts, setAttempts] = useState<Record<string, number>>({});
   const [errorProgress, setErrorProgress] = useState<Record<string, { ruleId: string | null; streak: number }>>({});
   const [hintLevel, setHintLevel] = useState(0);
+  const [maxHintLevel, setMaxHintLevel] = useState(0);
   const [remoteHint, setRemoteHint] = useState<string | null>(null);
   const [analysisCollapsed, setAnalysisCollapsed] = useState(false);
   const [mastery, setMastery] = useState(masterySeed);
@@ -67,6 +69,7 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
     setCode(next.starter);
     setAnalysis(null);
     setHintLevel(0);
+    setMaxHintLevel(0);
     setRemoteHint(null);
     setAnalysisCollapsed(false);
     setView("workspace");
@@ -110,6 +113,7 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
       },
     }));
     setHintLevel(nextAnalysis.finding ? nextHint.level : 0);
+    setMaxHintLevel(nextAnalysis.finding ? nextHint.level : 0);
     setRemoteHint(nextAnalysis.finding ? nextHint.content : null);
     setHistory((previous) => [
       {
@@ -144,9 +148,8 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
     }).catch(() => undefined);
   }
 
-  async function requestNextHint() {
-    if (!analysis || hintLevel >= 5) return;
-    const requestedLevel = Math.min(5, hintLevel + 1);
+  async function requestHintLevel(requestedLevel: number) {
+    if (!analysis?.finding || requestedLevel < 1 || requestedLevel > 5) return;
     try {
       const response = await fetch("/api/analyze", {
         method: "POST",
@@ -164,6 +167,7 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
       if (!response.ok) return;
       const payload = (await response.json()) as { hint: { content: string; level: number } };
       setHintLevel(payload.hint.level);
+      setMaxHintLevel((current) => Math.max(current, payload.hint.level));
       setRemoteHint(payload.hint.content);
     } catch {
       // Keep the current hint when the service is temporarily unavailable.
@@ -172,7 +176,7 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
 
   const initials = user.name === "學習者" ? "PL" : user.name.slice(0, 2).toUpperCase();
   const pageEyebrow = view === "workspace"
-    ? `PYTHON FOUNDATIONS · EXERCISE 0${challenge.index}`
+    ? `PYTHON FOUNDATIONS · EXERCISE ${String(challenge.index).padStart(2, "0")}`
     : view === "progress"
       ? "LEARNING ANALYTICS · PERSONAL DASHBOARD"
       : "SYSTEM TRANSPARENCY · ANALYSIS PIPELINE";
@@ -181,8 +185,7 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
     <div className="app-shell">
       <aside className="sidebar">
         <button className="brand" onClick={() => setView("workspace")} aria-label="回到解題頁">
-          <span className="brand-mark">P<span>y</span></span>
-          <span><strong>PyHint</strong><small>adaptive lab</small></span>
+          <strong>PyHint</strong>
         </button>
         <nav className="main-nav" aria-label="主要導覽">
           <button className={view === "workspace" ? "active" : ""} onClick={() => setView("workspace")}><span>⌘</span>解題工作台</button>
@@ -190,10 +193,10 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
           <button className={view === "system" ? "active" : ""} onClick={() => setView("system")}><span>◎</span>系統診斷</button>
         </nav>
         <div className="problem-nav">
-          <p>練習路徑 <span>3 題</span></p>
+          <p>練習路徑 <span>{challenges.length} 題</span></p>
           {challenges.map((item) => (
             <button key={item.id} className={challenge.id === item.id ? "selected" : ""} onClick={() => selectChallenge(item)}>
-              <span className="problem-index">0{item.index}</span>
+              <span className="problem-index">{String(item.index).padStart(2, "0")}</span>
               <span><strong>{item.title}</strong><small>{item.concepts.slice(0, 2).join(" · ")}</small></span>
             </button>
           ))}
@@ -220,7 +223,7 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
         {view === "workspace" && (
           <div className={`workspace-grid ${analysis ? "has-analysis" : ""}`}>
             <section className="problem-panel panel">
-              <div className="panel-label"><span>01</span>題目說明</div>
+              <div className="panel-label"><span>{String(challenge.index).padStart(2, "0")}</span>題目說明</div>
               <div className="difficulty"><span>{challenge.difficulty}</span><small>預估 8 分鐘</small></div>
               <p className="problem-copy">{challenge.description}</p>
               <div className="concept-list">
@@ -242,7 +245,7 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
             <section className="editor-panel panel">
               <div className="editor-toolbar">
                 <div><span className="file-dot" /> solution.py <small>Python 3.12</small></div>
-                <button onClick={() => { setCode(challenge.starter); setAnalysis(null); setHintLevel(0); setRemoteHint(null); setAnalysisCollapsed(false); }}>重設</button>
+                <button onClick={() => { setCode(challenge.starter); setAnalysis(null); setHintLevel(0); setMaxHintLevel(0); setRemoteHint(null); setAnalysisCollapsed(false); }}>重設</button>
               </div>
               <div className="code-editor-wrap">
                 <div className="line-numbers" aria-hidden="true">{lineNumbers.map((number) => <span key={number}>{number}</span>)}</div>
@@ -252,6 +255,7 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
                     setCode(event.target.value);
                     setAnalysis(null);
                     setHintLevel(0);
+                    setMaxHintLevel(0);
                     setRemoteHint(null);
                     setAnalysisCollapsed(false);
                   }}
@@ -293,9 +297,9 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
                     </div>
                     {analysis.finding ? (
                       <div className="raw-error-card">
-                        <span>原始錯誤輸出</span>
+                        <div className="test-result-label"><span>測試結果</span><b>FAILED</b></div>
                         <pre>{analysis.rawError ?? "ExecutionError: 程式未通過檢查"}</pre>
-                        <small>測資內容不公開</small>
+                        <small>{analysis.total > 0 ? `${analysis.passed} / ${analysis.total} 通過 · 隱藏測試不公開` : "語法錯誤，尚未執行測試"}</small>
                       </div>
                     ) : (
                       <div className="success-card">
@@ -306,10 +310,14 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
                   </div>
                   {analysis.finding && (
                     <div className="hint-card">
-                      <div><span>適性提示 · LEVEL {hintLevel}</span><small>相同錯誤第 {currentErrorProgress.streak} 次</small></div>
+                      <div><span>適性提示 · LEVEL {hintLevel}</span><small>已解鎖至 Level {maxHintLevel}</small></div>
                       <p>{remoteHint ?? "正在準備適合你的提示…"}</p>
                       <div className="level-explain">{hintLevelDescriptions[hintLevel]}</div>
-                      {hintLevel < 5 && <button onClick={requestNextHint}>我還需要更具體的提示 <span>→</span></button>}
+                      <div className="hint-navigation" aria-label="提示層級導覽">
+                        <button disabled={hintLevel <= 1} onClick={() => void requestHintLevel(hintLevel - 1)}><span>←</span> 上一層</button>
+                        <em>Level {hintLevel} / 5</em>
+                        <button disabled={hintLevel >= 5} onClick={() => void requestHintLevel(hintLevel + 1)}>下一層 <span>→</span></button>
+                      </div>
                     </div>
                   )}
                   </div>
@@ -359,7 +367,7 @@ function SystemView() {
     { no: "02", title: "AST 靜態分析", text: "以規則找出結構、節點、變數更新與可疑行號。" },
     { no: "03", title: "隔離測試執行", text: "執行一般、邊界與隱藏案例；學生端只顯示通過總數，不公開測資。" },
     { no: "04", title: "診斷融合", text: "結合靜態規則、測試差異、題目限制與歷史錯誤。" },
-    { no: "05", title: "適性提示生成", text: "每種錯誤首次固定從 Level 1 開始；相同錯誤重複出現才逐層增加。" },
+    { no: "05", title: "適性提示生成", text: "每種錯誤首次固定從 Level 1 開始；學習者可前後查看已解鎖的提示層級。" },
   ];
   return (
     <div className="system-view">
