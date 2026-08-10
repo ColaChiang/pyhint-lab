@@ -35,14 +35,23 @@ export async function POST(request: Request) {
     const level = Number.isFinite(requestedLevel)
       ? Math.min(5, Math.max(adaptiveLevel, requestedLevel))
       : adaptiveLevel;
+    const passed = result.tests.filter((test) => test.passed).length;
+    const total = result.tests.length;
+    const failed = total - passed;
+    const rawError = result.finding
+      ? result.syntaxValid
+        ? `AssertionError: ${failed} / ${total} 個保密測試未通過`
+        : `SyntaxError: ${result.finding.title}${result.finding.line ? ` (line ${result.finding.line})` : ""}`
+      : null;
 
     return Response.json({
       analysis: {
         syntaxValid: result.syntaxValid,
         structures: result.structures,
         finding: result.finding,
-        passed: result.tests.filter((test) => test.passed).length,
-        total: result.tests.length,
+        rawError,
+        passed,
+        total,
       },
       hint: {
         level: result.finding ? level : 0,
