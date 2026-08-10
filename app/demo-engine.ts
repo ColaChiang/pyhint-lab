@@ -61,7 +61,12 @@ export function analyzeCode(challenge: Challenge, code: string): Analysis {
 
   if (challenge.id === "list-sum") return analyzeListSum(code);
   if (challenge.id === "even-check") return analyzeEven(code);
-  return analyzeMaximum(code);
+  if (challenge.id === "find-max") return analyzeMaximum(code);
+  if (challenge.id === "count-positive") return analyzePositiveCount(code);
+  if (challenge.id === "count-vowels") return analyzeVowelCount(code);
+  if (challenge.id === "reverse-text") return analyzeReverseText(code);
+  if (challenge.id === "unique-items") return analyzeUniqueItems(code);
+  return analyzeFactorial(code);
 }
 
 function analyzeListSum(code: string): Analysis {
@@ -171,6 +176,118 @@ function analyzeMaximum(code: string): Analysis {
   return { syntaxValid: true, structures: commonStructures(code), finding, tests, score: tests.filter((test) => test.passed).length };
 }
 
+function analyzePositiveCount(code: string): Analysis {
+  const hasLoop = /for\s+\w+\s+in\s+numbers\s*:/.test(code);
+  const increments = /count\s*(\+=\s*1|=\s*count\s*\+\s*1)/.test(code);
+  const strictPositive = /if\s+number\s*>\s*0\s*:/.test(code);
+  const includesZero = /if\s+number\s*>=\s*0\s*:/.test(code);
+  const correct = hasLoop && increments && strictPositive;
+  const tests: TestResult[] = [
+    { name: "混合數字", input: "[-2, 0, 5, 8]", expected: "2", actual: correct ? "2" : includesZero ? "3" : "0", passed: correct },
+    { name: "全部負數", input: "[-4, -1]", expected: "0", actual: "0", passed: /count\s*=\s*0/.test(code) && /return\s+count/.test(code) },
+    { name: "空串列", input: "[]", expected: "0", actual: "0", passed: /count\s*=\s*0/.test(code) && /return\s+count/.test(code) },
+    { name: "隱藏邊界", input: "••••", expected: "通過", actual: correct ? "通過" : "失敗", passed: correct, hidden: true },
+  ];
+  let finding: Finding | null = null;
+  if (!hasLoop) {
+    finding = { ruleId: "MISSING_COUNT_LOOP", title: "缺少逐一計數的迴圈", concept: "迴圈", line: 2, confidence: 0.96, evidence: "需要逐一檢查 numbers 中的每個元素。" };
+  } else if (includesZero) {
+    finding = { ruleId: "ZERO_IS_NOT_POSITIVE", title: "邊界條件把 0 算成正數", concept: "條件判斷", line: lineOf(code, />=/), confidence: 0.98, evidence: "正數必須嚴格大於 0。" };
+  } else if (!correct) {
+    finding = { ruleId: "INCOMPLETE_COUNT", title: "計數條件或更新方式不完整", concept: "累加器", line: lineOf(code, /count/), confidence: 0.82, evidence: "條件成立時，count 應增加 1。" };
+  }
+  return { syntaxValid: true, structures: commonStructures(code), finding, tests, score: tests.filter((test) => test.passed).length };
+}
+
+function analyzeVowelCount(code: string): Analysis {
+  const hasLoop = /for\s+\w+\s+in\s+(text|text\.lower\(\))\s*:/.test(code);
+  const increments = /count\s*(\+=\s*1|=\s*count\s*\+\s*1)/.test(code);
+  const handlesCase = /\.lower\(\)/.test(code) || /aeiouAEIOU|AEIOUaeiou/.test(code);
+  const checksVowels = /in\s*["'](?:aeiou|aeiouAEIOU|AEIOUaeiou)["']/.test(code);
+  const correct = hasLoop && increments && handlesCase && checksVowels;
+  const tests: TestResult[] = [
+    { name: "小寫文字", input: "education", expected: "5", actual: checksVowels && increments ? "5" : "0", passed: checksVowels && increments },
+    { name: "混合大小寫", input: "OpenAI", expected: "4", actual: correct ? "4" : "2", passed: correct },
+    { name: "沒有母音", input: "rhythm", expected: "0", actual: "0", passed: checksVowels },
+    { name: "隱藏案例", input: "••••••", expected: "通過", actual: correct ? "通過" : "失敗", passed: correct, hidden: true },
+  ];
+  const finding = correct
+    ? null
+    : !handlesCase
+      ? { ruleId: "CASE_SENSITIVE_VOWELS", title: "母音判斷沒有涵蓋大寫字母", concept: "字串" as Concept, line: lineOf(code, /in\s*["']/), confidence: 0.96, evidence: "同一個母音可能以大寫或小寫出現。" }
+      : { ruleId: "INCOMPLETE_VOWEL_COUNT", title: "母音判斷或計數方式不完整", concept: "條件判斷" as Concept, line: lineOf(code, /if\s+/), confidence: 0.82, evidence: "請確認逐字檢查、母音集合與 count 更新三個部分。" };
+  return { syntaxValid: true, structures: commonStructures(code), finding, tests, score: tests.filter((test) => test.passed).length };
+}
+
+function analyzeReverseText(code: string): Analysis {
+  const usesShortcut = /\[\s*::\s*-1\s*\]|\breversed\s*\(/.test(code);
+  const hasLoop = /for\s+char\s+in\s+text\s*:/.test(code);
+  const prepends = /result\s*=\s*char\s*\+\s*result/.test(code);
+  const appends = /result\s*(\+=\s*char|=\s*result\s*\+\s*char)/.test(code);
+  const correct = hasLoop && prepends && !usesShortcut;
+  const tests: TestResult[] = [
+    { name: "一般文字", input: "python", expected: "nohtyp", actual: correct ? "nohtyp" : "python", passed: correct },
+    { name: "單一字元", input: "A", expected: "A", actual: "A", passed: /return\s+result/.test(code) },
+    { name: "空字串", input: "", expected: "", actual: "", passed: /result\s*=\s*["']["']/.test(code) },
+    { name: "隱藏案例", input: "••••••", expected: "通過", actual: correct ? "通過" : "失敗", passed: correct, hidden: true },
+  ];
+  let finding: Finding | null = null;
+  if (usesShortcut) {
+    finding = { ruleId: "FORBIDDEN_REVERSE_SHORTCUT", title: "使用了題目禁止的反轉捷徑", concept: "迴圈", line: lineOf(code, /\[\s*::\s*-1\s*\]|reversed/), confidence: 1, evidence: "這題要練習用迴圈自行組合反轉結果。" };
+  } else if (!hasLoop) {
+    finding = { ruleId: "MISSING_REVERSE_LOOP", title: "缺少逐字處理的迴圈", concept: "迴圈", line: 2, confidence: 0.96, evidence: "需要依序讀取 text 中的每個字元。" };
+  } else if (appends || !correct) {
+    finding = { ruleId: "APPEND_PRESERVES_ORDER", title: "字元被加在結果的錯誤一側", concept: "字串", line: lineOf(code, /result\s*(\+=|=)/), confidence: appends ? 0.97 : 0.82, evidence: "把新字元加在結果尾端只會保留原本順序。" };
+  }
+  return { syntaxValid: true, structures: commonStructures(code), finding, tests, score: tests.filter((test) => test.passed).length };
+}
+
+function analyzeUniqueItems(code: string): Analysis {
+  const usesSet = /\bset\s*\(/.test(code);
+  const hasLoop = /for\s+(item|value)\s+in\s+items\s*:/.test(code);
+  const checksExisting = /if\s+(item|value)\s+not\s+in\s+result\s*:/.test(code);
+  const appends = /result\.append\s*\(\s*(item|value)\s*\)/.test(code);
+  const correct = hasLoop && checksExisting && appends && !usesSet;
+  const tests: TestResult[] = [
+    { name: "重複數字", input: "[3, 1, 3, 2, 1]", expected: "[3, 1, 2]", actual: correct ? "[3, 1, 2]" : "順序不固定", passed: correct },
+    { name: "沒有重複", input: "[4, 2]", expected: "[4, 2]", actual: correct ? "[4, 2]" : "順序不固定", passed: correct },
+    { name: "空串列", input: "[]", expected: "[]", actual: "[]", passed: /return\s+(result|list\(set\(items\)\))/.test(code) },
+    { name: "隱藏順序", input: "••••••", expected: "通過", actual: correct ? "通過" : "失敗", passed: correct, hidden: true },
+  ];
+  let finding: Finding | null = null;
+  if (usesSet) {
+    finding = { ruleId: "SET_LOSES_ORDER", title: "set() 無法保證題目要求的順序", concept: "串列", line: lineOf(code, /set\s*\(/), confidence: 0.99, evidence: "結果必須保留每個項目第一次出現的先後順序。" };
+  } else if (!hasLoop) {
+    finding = { ruleId: "MISSING_UNIQUE_LOOP", title: "缺少逐一處理項目的迴圈", concept: "迴圈", line: 2, confidence: 0.95, evidence: "需要依原順序檢查 items 中的每個項目。" };
+  } else if (!correct) {
+    finding = { ruleId: "INCOMPLETE_UNIQUE_FILTER", title: "去重條件或加入結果的步驟不完整", concept: "條件判斷", line: lineOf(code, /if\s+|append/), confidence: 0.84, evidence: "只在項目尚未出現在 result 時，才把它加入。" };
+  }
+  return { syntaxValid: true, structures: commonStructures(code), finding, tests, score: tests.filter((test) => test.passed).length };
+}
+
+function analyzeFactorial(code: string): Analysis {
+  const initializesOne = /result\s*=\s*1/.test(code);
+  const initializesZero = /result\s*=\s*0/.test(code);
+  const hasLoop = /for\s+(number|i)\s+in\s+range\s*\(/.test(code);
+  const multiplies = /result\s*(\*=\s*(number|i)|=\s*result\s*\*\s*(number|i))/.test(code);
+  const correct = initializesOne && hasLoop && multiplies;
+  const tests: TestResult[] = [
+    { name: "一般案例", input: "5", expected: "120", actual: correct ? "120" : "0", passed: correct },
+    { name: "零的階乘", input: "0", expected: "1", actual: initializesOne ? "1" : "0", passed: initializesOne && /return\s+result/.test(code) },
+    { name: "一的階乘", input: "1", expected: "1", actual: correct ? "1" : "0", passed: correct },
+    { name: "隱藏案例", input: "••", expected: "通過", actual: correct ? "通過" : "失敗", passed: correct, hidden: true },
+  ];
+  let finding: Finding | null = null;
+  if (initializesZero) {
+    finding = { ruleId: "WRONG_MULTIPLICATIVE_IDENTITY", title: "乘法累積的初始值會讓結果永遠為 0", concept: "累加器", line: lineOf(code, /result\s*=\s*0/), confidence: 0.99, evidence: "任何數乘以 0 都會得到 0。" };
+  } else if (!hasLoop) {
+    finding = { ruleId: "MISSING_FACTORIAL_LOOP", title: "缺少連續相乘的迴圈", concept: "迴圈", line: 2, confidence: 0.95, evidence: "階乘需要把 1 到 n 的整數依序相乘。" };
+  } else if (!correct) {
+    finding = { ruleId: "INCOMPLETE_FACTORIAL", title: "階乘的累積方式不完整", concept: "累加器", line: lineOf(code, /result/), confidence: 0.84, evidence: "result 應保留先前乘積，再乘上目前數字。" };
+  }
+  return { syntaxValid: true, structures: commonStructures(code), finding, tests, score: tests.filter((test) => test.passed).length };
+}
+
 const hintTemplates: Record<string, string[]> = {
   ACCUMULATOR_OVERWRITE: [
     "想一想：迴圈每跑一次，先前計算的結果是否仍被保留下來？",
@@ -206,6 +323,41 @@ const hintTemplates: Record<string, string[]> = {
     "不要假設資料一定大於 0；可以從串列本身取得一個有效候選值。",
     "可將 largest 初始化為 numbers[0]。",
     "參考結構：largest = numbers[0]，逐一比較，遇到更大的值就更新。",
+  ],
+  ZERO_IS_NOT_POSITIVE: [
+    "想一想：0 是否符合『大於 0』的定義？",
+    "請檢查 if 條件中的比較運算子。",
+    "正數的判斷必須排除 0，因此條件要使用嚴格大於。",
+    "將條件調整為 number > 0。",
+    "參考寫法：遍歷 numbers，當 number > 0 時讓 count += 1。",
+  ],
+  CASE_SENSITIVE_VOWELS: [
+    "同一個英文字母可能以不同大小寫出現。",
+    "問題集中在 char 與母音字串比較的區域。",
+    "比較前可先把字元統一轉成小寫。",
+    "條件可寫成 char.lower() in \"aeiou\"。",
+    "參考結構：逐字遍歷 text，將 char 轉小寫後判斷是否為母音，再更新 count。",
+  ],
+  APPEND_PRESERVES_ORDER: [
+    "目前組合字元的方式是否真的改變了順序？",
+    "請查看迴圈內更新 result 的那一行。",
+    "要反轉順序，新字元應放在既有結果的前面。",
+    "可將更新式寫成 result = char + result。",
+    "參考結構：result = \"\"，逐字遍歷 text，每次用 result = char + result 更新。",
+  ],
+  SET_LOSES_ORDER: [
+    "去除重複之外，題目還要求保留原本順序。",
+    "請檢查回傳值是否經過 set()。",
+    "依序遍歷 items，只有尚未出現在結果中的項目才加入。",
+    "可建立 result = []，並使用 if item not in result: result.append(item)。",
+    "參考結構：初始化 result，依序檢查每個 item，未出現才 append，最後 return result。",
+  ],
+  WRONG_MULTIPLICATIVE_IDENTITY: [
+    "乘法累積的起點與加法累積不同。",
+    "請查看 result 的初始值。",
+    "任何數乘以 0 都是 0；乘法累積應從不改變乘積的值開始。",
+    "將 result 的初始值改為 1。",
+    "參考結構：result = 1，遍歷 1 到 n，逐次 result *= number，最後回傳 result。",
   ],
 };
 
