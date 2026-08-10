@@ -30,6 +30,7 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
   const [errorProgress, setErrorProgress] = useState<Record<string, { ruleId: string | null; streak: number }>>({});
   const [hintLevel, setHintLevel] = useState(0);
   const [remoteHint, setRemoteHint] = useState<string | null>(null);
+  const [analysisCollapsed, setAnalysisCollapsed] = useState(false);
   const [mastery, setMastery] = useState(masterySeed);
   const [running, setRunning] = useState(false);
   const [history, setHistory] = useState<{ title: string; result: string; time: string }[]>([
@@ -39,9 +40,6 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
 
   const currentAttempts = attempts[challenge.id] ?? 0;
   const currentErrorProgress = errorProgress[challenge.id] ?? { ruleId: null, streak: 0 };
-  const primaryMastery = mastery.find((item) => item.label === challenge.concepts[0])?.value ?? 60;
-  const analysisMastery = mastery.find((item) => item.label === analysis?.finding?.concept)?.value ?? primaryMastery;
-  const passedCount = analysis?.passed ?? 0;
   const lineNumbers = useMemo(() => code.split("\n").map((_, index) => index + 1), [code]);
   const masteryByConcept = useMemo(
     () => Object.fromEntries(mastery.map((item) => [item.label, item.value])),
@@ -70,6 +68,7 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
     setAnalysis(null);
     setHintLevel(0);
     setRemoteHint(null);
+    setAnalysisCollapsed(false);
     setView("workspace");
   }
 
@@ -101,6 +100,7 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
       return;
     }
     setAnalysis(nextAnalysis);
+    setAnalysisCollapsed(false);
     setAttempts((previous) => ({ ...previous, [challenge.id]: nextAttempts }));
     setErrorProgress((previous) => ({
       ...previous,
@@ -171,6 +171,11 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
   }
 
   const initials = user.name === "學習者" ? "PL" : user.name.slice(0, 2).toUpperCase();
+  const pageEyebrow = view === "workspace"
+    ? `PYTHON FOUNDATIONS · EXERCISE 0${challenge.index}`
+    : view === "progress"
+      ? "LEARNING ANALYTICS · PERSONAL DASHBOARD"
+      : "SYSTEM TRANSPARENCY · ANALYSIS PIPELINE";
 
   return (
     <div className="app-shell">
@@ -203,7 +208,7 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
       <main className="main-area">
         <header className="topbar">
           <div>
-            <span className="eyebrow">PYTHON FOUNDATIONS · UNIT 02</span>
+            <span className="eyebrow">{pageEyebrow}</span>
             <h1>{view === "workspace" ? challenge.title : view === "progress" ? "你的學習軌跡" : "診斷引擎透明度"}</h1>
           </div>
           <div className="topbar-actions">
@@ -237,7 +242,7 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
             <section className="editor-panel panel">
               <div className="editor-toolbar">
                 <div><span className="file-dot" /> solution.py <small>Python 3.12</small></div>
-                <button onClick={() => { setCode(challenge.starter); setAnalysis(null); setHintLevel(0); setRemoteHint(null); }}>重設</button>
+                <button onClick={() => { setCode(challenge.starter); setAnalysis(null); setHintLevel(0); setRemoteHint(null); setAnalysisCollapsed(false); }}>重設</button>
               </div>
               <div className="code-editor-wrap">
                 <div className="line-numbers" aria-hidden="true">{lineNumbers.map((number) => <span key={number}>{number}</span>)}</div>
@@ -248,6 +253,7 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
                     setAnalysis(null);
                     setHintLevel(0);
                     setRemoteHint(null);
+                    setAnalysisCollapsed(false);
                   }}
                   onKeyDown={(event) => {
                     if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
@@ -263,24 +269,33 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
             </section>
 
             {analysis && (
-              <aside className="insight-panel panel" aria-live="polite">
+              <aside className={`insight-panel panel ${analysisCollapsed ? "is-collapsed" : ""}`} aria-live="polite">
                 <div className="hint-heading">
-                  <div className="panel-label"><span>{analysis.finding ? "AI" : "✓"}</span>{analysis.finding ? "診斷結果與適性提示" : "執行結果"}</div>
-                  <strong>{analysis.finding ? "提示已啟用" : "作答完成"}</strong>
+                  <div className="panel-label"><span>{analysis.finding ? "!" : "✓"}</span>{analysis.finding ? "執行錯誤與適性提示" : "執行結果"}</div>
+                  <div className="hint-heading-actions">
+                    <strong>{analysis.finding ? "提示已啟用" : "作答完成"}</strong>
+                    <button
+                      className="collapse-button"
+                      type="button"
+                      aria-expanded={!analysisCollapsed}
+                      onClick={() => setAnalysisCollapsed((current) => !current)}
+                    >
+                      {analysisCollapsed ? "展開" : "收合"}<span aria-hidden="true">{analysisCollapsed ? "⌄" : "⌃"}</span>
+                    </button>
+                  </div>
                 </div>
-                <div className="analysis-content">
-                  <div className="diagnosis-column">
+                {!analysisCollapsed && (
+                  <div className={`analysis-content ${analysis.finding ? "error-view" : "success-view"}`}>
+                    <div className="execution-column">
                     <div className="analysis-head">
-                      <span className={analysis.finding ? "warning" : "success"}>{analysis.finding ? "發現 1 個主要問題" : "所有測試通過"}</span>
+                      <span className={analysis.finding ? "warning" : "success"}>{analysis.finding ? "執行未通過" : "所有測試通過"}</span>
                       <small>第 {currentAttempts} 次嘗試</small>
                     </div>
                     {analysis.finding ? (
-                      <div className="finding-card">
-                        <div className="diagnosis-label"><b>診斷結果</b><small>不是提示內容</small></div>
-                        <div><span>第 {analysis.finding.line ?? "?"} 行</span><em>{Math.round(analysis.finding.confidence * 100)}% 信心</em></div>
-                        <strong>{analysis.finding.title}</strong>
-                        <p>{analysis.finding.evidence}</p>
-                        <code>{analysis.finding.ruleId}</code>
+                      <div className="raw-error-card">
+                        <span>原始錯誤輸出</span>
+                        <pre>{analysis.rawError ?? "ExecutionError: 程式未通過檢查"}</pre>
+                        <small>測資內容不公開</small>
                       </div>
                     ) : (
                       <div className="success-card">
@@ -297,13 +312,8 @@ export default function PyHintApp({ user }: { user: { name: string; email: strin
                       {hintLevel < 5 && <button onClick={requestNextHint}>我還需要更具體的提示 <span>→</span></button>}
                     </div>
                   )}
-                  <div className="evidence-list">
-                    <p>診斷依據</p>
-                    <span><i>AST</i>{analysis.structures.join(" · ") || "無可用結構"}</span>
-                    <span><i>TEST</i>系統測試 {passedCount}/{analysis.total} 通過（測資保密）</span>
-                    <span><i>MODEL</i>{analysis.finding ? `${analysis.finding.concept}掌握度 ${analysisMastery}%` : "本次未啟用提示"}</span>
                   </div>
-                </div>
+                )}
               </aside>
             )}
           </div>
