@@ -6,6 +6,10 @@ PyHint Lab 是一套結合程式靜態分析、測試執行、學習者狀態與
 
 > 目前線上展示版提供 8 題互動練習，使用確定性的 TypeScript 分析引擎，不會直接執行使用者提交的 Python。完整 FastAPI 後端目前提供 3 題，包含真正的 Python AST、受限測試執行、SQLite、BKT 風格能力更新與可選的 LLM 提示表達。
 
+## English summary
+
+PyHint Lab is an adaptive Python hint system. The hosted demo contains eight interactive exercises powered by a deterministic TypeScript analyzer, while the FastAPI research backend currently contains three exercises with Python AST analysis, bounded test execution, SQLite history, BKT-style mastery updates, and optional LLM wording. The LLM explains verified evidence; it does not decide whether a submission is correct.
+
 ## 系統流程
 
 ```mermaid
@@ -226,7 +230,5 @@ npm run build
 
 主要評估指標包括診斷 Precision、Recall、Macro F1、答對所需嘗試次數、最高提示層級、提示後修改方向、延宕測驗、提示清楚度、答案洩漏程度與可信度。
 
-## English summary
 
-PyHint Lab is an adaptive Python hint system. The hosted demo contains eight interactive exercises powered by a deterministic TypeScript analyzer, while the FastAPI research backend currently contains three exercises with Python AST analysis, bounded test execution, SQLite history, BKT-style mastery updates, and optional LLM wording. The LLM explains verified evidence; it does not decide whether a submission is correct.
 
