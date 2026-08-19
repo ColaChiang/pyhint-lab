@@ -3,6 +3,7 @@
 PyHint Lab 是一套結合程式靜態分析、測試執行、學習者狀態與生成式 AI 的適性化 Python 提示系統。系統不讓大型語言模型直接猜測程式錯誤，而是先取得可驗證的分析結果，再依錯誤類型與學習歷程提供分層提示。
 
 [開啟線上展示版](https://pyhint-lab.workspace-526245.chatgpt.site)
+![Uploading 螢幕擷取畫面 2026-08-10 234321.jpg…]()
 
 > 目前線上展示版提供 8 題互動練習，使用確定性的 TypeScript 分析引擎，不會直接執行使用者提交的 Python。完整 FastAPI 後端目前提供 3 題，包含真正的 Python AST、受限測試執行、SQLite、BKT 風格能力更新與可選的 LLM 提示表達。
 
